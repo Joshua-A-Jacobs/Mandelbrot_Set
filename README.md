@@ -1,1 +1,0 @@
-# Mandelbrot_Set
