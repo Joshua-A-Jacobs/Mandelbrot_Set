@@ -1,5 +1,4 @@
-NAME: Joshua Jacobs
-TIME: 20h
-USAGE: Must compile with -lm. You must hit w,a,s, or d to start the program. The BMP takes a while to load since I decided to put quite a bit of detail into it, but give it 10-20 seconds and it will close the program and create a BMP file called b.BMP that you can export and view (or just view on Linux).
-COMMENTS: No issues
-I have neither given nor received assistance on this assignment
+Joshua Jacobs
+
+Must compile with -lm. You must hit w,a,s, or d to start the program. The BMP takes a while to load since I decided to put quite a bit of detail into it, but give it 10-20 seconds and it will close the program and create a BMP file called b.BMP that you can export and view (or just view on Linux).
+nt
