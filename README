@@ -1,7 +1,6 @@
 Joshua Jacobs
 
-Must compile with -lm. You must hit w,a,s, or d to start the program. Use WASD to move the selected area and Q and E to soom out 
-and in respectivelyYou can hit ~ to create a detail BMP file of the surrounding area. The BMP takes a while to load since I 
-decided to put quite a bit of detail into it, but give it 10-20 seconds and it will close the program and create a BMP file called b.BMP 
+Must compile with -lm. You must hit w,a,s, or d to start the program. Use WASD to move the selected area and Q to zoom out 
+and E to zoom in. You can hit ~ to create a detailed BMP file of the currently selected area. After 10-20 seconds and it will close the program and create a BMP file called b.BMP 
 that you can export and view (or just view on Linux).
 
