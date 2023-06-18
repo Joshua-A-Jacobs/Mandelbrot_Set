@@ -1,9 +1,6 @@
 /*
-NAME: Joshua Jacobs
-DATE: 4/16/17
-CLASS: CSE 2421 M/W 16:15
-
-The program creates a Mendelbrot Set and displays it to the screen. You can navigate with W,A,S, and D and zoom in/out with E and Q. You can also       create a Bitmap file of what you're viewing with the ~ button.
+The program creates a Mendelbrot Set and displays it to the screen. You can navigate with W,A,S, and D and zoom in/out with E and Q. 
+Create a Bitmap file of what you're viewing with the ~ button.
 */
 
 
@@ -39,7 +36,10 @@ void BMPheader(FILE*);
 void pixelGen(FILE*,window_t);
 double getMin(double x, double y);
 
-const int imagePrecision = 2000;
+const int imageSimPrecision = 250;
+const int imageGenPrecision = 2000;
+const int imageGenAccuracy = 255;
+const int divergenceSpeedMax = 3;
 
 int main(void){
     //initilizations
@@ -65,11 +65,11 @@ int main(void){
     window.minX= -window.maxX;
     window.width = window.maxX*2;
 
-
     start_color();  //allows colors
     init_pair(1,COLOR_BLUE,COLOR_BLUE); //creates a pair to be completely blue
+    create_window(window,win);  //creates the Mendelbrot set onscreen
     while(1){
-        c = getch();    //gets input from user
+        c = wgetch(win);    //gets input from user
         switch(c){
             
             //adjusts the scale based on the direction the user wishes to go
@@ -147,12 +147,12 @@ int is_in_set(complex_t x){
     z.real = 0;
     z.imagine = 0;
 
-    for(i = 0;i <= 250;i++){
+    for(i = 0;i <= imageSimPrecision; i++){
         z = complex_multiply(z,z);//squares z and then adds x
         z = complex_add(z,x);
         mag = complex_magnitude(z); //gets the magnitude
         //this checks to see if it is growing too fast, thus diverging
-        if(mag > 3 ){
+        if(mag > divergenceSpeedMax){
             return 0;}//diverges
     }
 return 1;//converges
@@ -201,26 +201,26 @@ int complex_magnitude(complex_t x){
 }
 
 void create_window(window_t window,WINDOW *win){
-    //inilization
-    double i, j;
-    int check;
+    //initilization
+    int i, j;
     complex_t x;
-    
-    for(i=window.minY; i <= window.maxY;i+= window.scale){//imaginary loop
-        i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-        x.imagine = i;
-        for(j = window.minX; j < window.maxX; j+= window.scale){//real loop
-            j = round(j*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-            x.real = j;
-            check = is_in_set(x);//1 if in set, 0 if not
-            if(check){
+
+    for(i=0; i < LINES; i++){//imaginary loop
+        //i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
+        x.imagine = window.minY + window.scale*i;
+        for(j = 0; j < COLS-1; j++ ){//real loop
+            //j = round(j*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
+            x.real = window.minX + window.scale*j;
+
+            if(is_in_set(x)){
                 wattroff(win, COLOR_PAIR(1));//sets to default
-                wprintw(win," ");}//prints black space
+            }
             else{
                 wattron(win, COLOR_PAIR(1));//sets to blue
-                wprintw(win," ");}//prints blue space
+            }
+            wprintw(win," ");//prints black space
         }
-    wprintw(win, "\n");
+        wprintw(win,"\n");
     }
 }
 
@@ -319,18 +319,18 @@ void BMPheader(FILE *file)
 void pixelGen(FILE *bmp,window_t window){
     //inilization
     double i,j,k,l,var;
-    int check,mag;
+    int divergenceSpeed,mag;
     complex_t x;
     
     if(window.height >= window.width){
-        window.scale = window.height/imagePrecision;
+        window.scale = window.height/imageGenPrecision;
         var = (window.height - window.width)/2;    
         window.minX = window.minX-var;
         window.maxX = window.maxX+var;
         }
     
     else{
-        window.scale = window.width/imagePrecision;
+        window.scale = window.width/imageGenPrecision;
         var = (window.width - window.height)/2;
         window.minY = window.minY - var;
         window.maxY = window.maxY + var;
@@ -341,7 +341,7 @@ void pixelGen(FILE *bmp,window_t window){
         
         x.imagine = i;
         j = window.minX;
-        for(l = 0; l < imagePrecision; l++){//real loop
+        for(l = 0; l < imageGenPrecision; l++){//real loop
             
             j = round(j*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
             
@@ -349,29 +349,24 @@ void pixelGen(FILE *bmp,window_t window){
             complex_t z;
             z.real = 0;
             z.imagine = 0;
-            check = 0;
+            divergenceSpeed = 0;
             
-            for(k = 0;k <= 255;k++){
+            for(k = 0;k <= imageGenAccuracy;k++){
                 z = complex_multiply(z,z);//squares z and then adds x
                 z = complex_add(z,x);
                 
                 mag = complex_magnitude(z); //gets the magnitude
                 
                 //this checks to see if it is growing too fast, thus diverging
-                if(mag > 3){
-                    fputc(k,bmp);
-                    fputc(0,bmp);
-                    fputc(0,bmp);
-                    check = 1;
+                if(mag > divergenceSpeedMax){
+                    divergenceSpeed = k;
                     break;
                 }
             }
-            
-            if(check == 0){
-                fputc(0,bmp);
-                fputc(0,bmp);
-                fputc(0,bmp);
-            }
+            fputc(divergenceSpeed,bmp);
+            fputc(0,bmp);
+            fputc(0,bmp);
+
             j += window.scale;
         }
     }   
