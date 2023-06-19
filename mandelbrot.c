@@ -5,7 +5,9 @@ Create a Bitmap file of what you're viewing with the ~ button.
 
 
 #include<stdio.h>
+#include<stdlib.h>
 #include<math.h>
+#include<pthread.h>
 #include<ncurses.h>
 
 typedef struct complex_t{
@@ -23,6 +25,14 @@ typedef struct window_t{
     double scale;
 } window_t; 
 
+typedef struct threadArgs {
+    FILE* bmp;
+    window_t window;
+    complex_t x;
+    int index;
+    int* resultArray;
+} threadArgs;
+
 //prototypes
 int is_in_set(complex_t);
 complex_t complex_multiply(complex_t,complex_t);
@@ -35,6 +45,7 @@ void make_bitmap(window_t);
 void BMPheader(FILE*);
 void pixelGen(FILE*,window_t);
 double getMin(double x, double y);
+void* addPixelsToImage(void* threadArgs);
 
 const int imageSimPrecision = 250;
 const int imageGenPrecision = 2000;
@@ -316,11 +327,13 @@ void BMPheader(FILE *file)
     for( i = 50; i < 54; i++) fputc(0,file);
 }
 
+
 void pixelGen(FILE *bmp,window_t window){
     //inilization
-    double i,j,k,l,var;
-    int divergenceSpeed,mag;
+    double i,j,k,var;
+    int divergenceSpeed,mag,count=0;
     complex_t x;
+    
     
     if(window.height >= window.width){
         window.scale = window.height/imageGenPrecision;
@@ -335,39 +348,88 @@ void pixelGen(FILE *bmp,window_t window){
         window.minY = window.minY - var;
         window.maxY = window.maxY + var;
     }
-    for(i=window.maxY; i > window.minY; i -= window.scale){//imaginary loop
-        
-        i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-        
-        x.imagine = i;
-        j = window.minX;
-        for(l = 0; l < imageGenPrecision; l++){//real loop
-            
-            j = round(j*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-            
-            x.real = j;
-            complex_t z;
-            z.real = 0;
-            z.imagine = 0;
-            divergenceSpeed = 0;
-            
-            for(k = 0;k <= imageGenAccuracy;k++){
-                z = complex_multiply(z,z);//squares z and then adds x
-                z = complex_add(z,x);
-                
-                mag = complex_magnitude(z); //gets the magnitude
-                
-                //this checks to see if it is growing too fast, thus diverging
-                if(mag > divergenceSpeedMax){
-                    divergenceSpeed = k;
-                    break;
-                }
-            }
-            fputc(divergenceSpeed,bmp);
-            fputc(0,bmp);
-            fputc(0,bmp);
+    int indexI = round((window.maxY - window.minY) / window.scale);
+    pthread_t threads[indexI];
+    threadArgs args[indexI];
 
-            j += window.scale;
+    for(count = 0; count < indexI; count++){//imaginary loop
+        i = window.maxY - window.scale*count;
+        i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
+        x.imagine = i;
+        
+        args[count].bmp = bmp;
+        args[count].window = window;
+        args[count].x = x;
+        args[count].resultArray =  malloc(imageGenPrecision * sizeof(int));
+
+        if (pthread_create(&threads[count], NULL, addPixelsToImage, &args[count]))
+        {
+            printf("ERROR1");
+        }
+    }
+
+    for(count = 0; count < indexI; count++)
+    {
+        if(pthread_join(threads[count], NULL))
+        {
+            printf("ERROR2");
         }
     }   
+    for(count = 0; count < indexI; count++)
+    {
+        for(int i2 = 0; i2<imageGenPrecision;i2++)
+        {
+            fputc(args[count].resultArray[i2], bmp);
+            fputc(0, bmp);
+            fputc(0, bmp);
+        }
+    }
+
+}
+
+void *addPixelsToImage(void* tArgs)
+{
+    threadArgs *args = (threadArgs*) tArgs;
+    window_t window= args->window;
+    complex_t x=args->x;
+    FILE* bmp=args->bmp;
+    int index = args->index;
+    double j = window.minX;
+    int mag,divergenceSpeed,l,k;
+    
+
+    for (l = 0; l < imageGenPrecision; l++)
+    { // real loop
+
+        j = round(j * 1000000000000) / 1000000000000; // gets rid of any garbage on the end of double
+
+        x.real = j;
+        complex_t z;
+        z.real = 0;
+        z.imagine = 0;
+        divergenceSpeed = 0;
+
+        for (k = 0; k <= imageGenAccuracy; k++)
+        {
+            z = complex_multiply(z, z); // squares z and then adds x
+            z = complex_add(z, x);
+
+            mag = complex_magnitude(z); // gets the magnitude
+
+            // this checks to see if it is growing too fast, thus diverging
+            if (mag > divergenceSpeedMax)
+            {
+                divergenceSpeed = k;
+                break;
+            }
+        }
+
+        //fputc(divergenceSpeed, bmp);
+        //fputc(0, bmp);
+        //fputc(0, bmp);
+        j += window.scale;
+        args->resultArray[l] = divergenceSpeed;
+    }
+
+
 }
