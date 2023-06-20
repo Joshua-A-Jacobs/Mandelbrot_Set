@@ -47,6 +47,7 @@ void pixelGen(FILE*,window_t);
 double getMin(double, double);
 void* addPixelsToImage(void*);
 void* setColumnsForWindow(void*);
+void DrawScreenWithMatrix(void*,WINDOW*);
 
 const int imageSimPrecision = 250;
 const int imageGenResolution = 5000;
@@ -246,8 +247,15 @@ void create_window(window_t window,WINDOW *win){
             printf("ERROR ON JOIN THREAD #%d", i);
         }
     }
-    for(i=0; i < LINES; i++){
-        for(j=0; j < COLS-1; j++){
+
+    DrawScreenWithMatrix(&args,win);
+}
+
+void DrawScreenWithMatrix(void* tArgs, WINDOW* win){
+    threadArgs *args = (threadArgs*) tArgs;
+
+    for(int i=0; i < LINES; i++){
+        for(int j=0; j < COLS-1; j++){
             if(args[i].resultArray[j])
             {
                 wattroff(win, COLOR_PAIR(1));//sets to default
