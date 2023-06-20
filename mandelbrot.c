@@ -1,5 +1,5 @@
 /*
-The program creates a Mendelbrot Set and displays it to the screen. You can navigate with W,A,S, and D and zoom in/out with E and Q. 
+The program creates a Mandelbrot Set and displays it to the screen. You can navigate with W,A,S, and D and zoom in/out with E and Q. 
 Create a Bitmap file of what you're viewing with the ~ button.
 */
 
@@ -44,12 +44,17 @@ void create_window(window_t,WINDOW*);
 void make_bitmap(window_t);
 void BMPheader(FILE*);
 void pixelGen(FILE*,window_t);
-double getMin(double x, double y);
-void* addPixelsToImage(void* threadArgs);
+double getMin(double, double);
+void* addPixelsToImage(void*);
+void* setColumnsForWindow(void*);
 
 const int imageSimPrecision = 250;
-const int imageGenPrecision = 2000;
-const int imageGenAccuracy = 255;
+const int imageGenResolution = 5000;
+//hex2 concatanated with hex1 must = imageGenPrecision
+//0x1388 = 5000
+const int imageGenSizeHex1 = 0x88;
+const int imageGenSizeHex2 = 0x13;
+const int imageGenAccuracy = 500;
 const int divergenceSpeedMax = 3;
 
 int main(void){
@@ -216,23 +221,58 @@ void create_window(window_t window,WINDOW *win){
     int i, j;
     complex_t x;
 
+    //Thread declaration
+    pthread_t threads[LINES];
+    threadArgs args[LINES];
+
     for(i=0; i < LINES; i++){//imaginary loop
         //i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
         x.imagine = window.minY + window.scale*i;
-        for(j = 0; j < COLS-1; j++ ){//real loop
-            //j = round(j*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-            x.real = window.minX + window.scale*j;
 
-            if(is_in_set(x)){
+        //sets the multithreads arguments
+        args[i].window = window;
+        args[i].x = x;
+        //Initilizes an array of the required size to handle the loop of diverging integers
+        args[i].resultArray =  malloc((COLS-1) * sizeof(int));
+
+        if (pthread_create(&threads[i], NULL, setColumnsForWindow, &args[i]))
+        {
+            printf("ERROR ON CREATE THREAD #%d", i);
+        }
+    }
+    for(i=0; i < LINES; i++){
+        if(pthread_join(threads[i], NULL))
+        {
+            printf("ERROR ON JOIN THREAD #%d", i);
+        }
+    }
+    for(i=0; i < LINES; i++){
+        for(j=0; j < COLS-1; j++){
+            if(args[i].resultArray[j])
+            {
                 wattroff(win, COLOR_PAIR(1));//sets to default
             }
-            else{
+            else
+            {
                 wattron(win, COLOR_PAIR(1));//sets to blue
             }
-            wprintw(win," ");//prints black space
+            wprintw(win," ");
         }
         wprintw(win,"\n");
     }
+}
+
+void* setColumnsForWindow(void* tArgs)
+{
+    threadArgs *args = (threadArgs*) tArgs;
+    window_t window= args->window;
+    complex_t x=args->x;
+    
+    //real loop
+    for(int i = 0; i < COLS-1; i++ ){
+            x.real = window.minX + window.scale*i;
+            args->resultArray[i] = is_in_set(x);
+        }
 }
 
 void make_bitmap(window_t window){
@@ -277,14 +317,14 @@ void BMPheader(FILE *file)
     for( i = 15; i < 18; i++) fputc(0,file);
 
     // width of the image
-    fputc(0xD0,file);
-    fputc(0x7,file);
+    fputc(imageGenSizeHex1,file);
+    fputc(imageGenSizeHex2,file);
     fputc(0,file);
     fputc(0,file);
 
     // height of the image
-    fputc(0xD0,file);
-    fputc(0x7,file);
+    fputc(imageGenSizeHex1,file);
+    fputc(imageGenSizeHex2,file);
     fputc(0,file);
     fputc(0,file);
 
@@ -329,62 +369,61 @@ void BMPheader(FILE *file)
 
 
 void pixelGen(FILE *bmp,window_t window){
-    //inilization
-    double i,j,k,var;
-    int divergenceSpeed,mag,count=0;
+    //initilization
+    double halfHeight;
+    int i,j;
     complex_t x;
     
-    
-    if(window.height >= window.width){
-        window.scale = window.height/imageGenPrecision;
-        var = (window.height - window.width)/2;    
-        window.minX = window.minX-var;
-        window.maxX = window.maxX+var;
-        }
-    
-    else{
-        window.scale = window.width/imageGenPrecision;
-        var = (window.width - window.height)/2;
-        window.minY = window.minY - var;
-        window.maxY = window.maxY + var;
-    }
-    int indexI = round((window.maxY - window.minY) / window.scale);
-    pthread_t threads[indexI];
-    threadArgs args[indexI];
+    //TODO:Not sure what's going on here, review later
+    window.scale = window.width/imageGenResolution;
+    halfHeight = (window.width - window.height)/2;
+    window.minY = window.minY - halfHeight;
+    window.maxY = window.maxY + halfHeight;
 
-    for(count = 0; count < indexI; count++){//imaginary loop
-        i = window.maxY - window.scale*count;
-        i = round(i*1000000000000)/1000000000000;//gets rid of any garbage on the end of double
-        x.imagine = i;
+    //Total number of loops needed
+    int pixelCountY = round((window.maxY - window.minY) / window.scale);
+    //Thread declaration
+    pthread_t threads[pixelCountY];
+    threadArgs args[pixelCountY];
+
+    x.imagine = window.maxY;
+    for(i = 0; i < pixelCountY; i++){//imaginary loop
         
-        args[count].bmp = bmp;
-        args[count].window = window;
-        args[count].x = x;
-        args[count].resultArray =  malloc(imageGenPrecision * sizeof(int));
+        //sets the multithreads arguments
+        args[i].bmp = bmp;
+        args[i].window = window;
+        args[i].x = x;
+        //Initilizes an array of the required size to handle the loop of diverging integers
+        args[i].resultArray =  malloc(imageGenResolution * sizeof(int));
 
-        if (pthread_create(&threads[count], NULL, addPixelsToImage, &args[count]))
+        //creates the thread that will output an array of diverging integers
+        if (pthread_create(&threads[i], NULL, addPixelsToImage, &args[i]))
         {
-            printf("ERROR1");
+            printf("ERROR ON CREATE THREAD #%d", i);
         }
+        
+        x.imagine -= window.scale;
     }
 
-    for(count = 0; count < indexI; count++)
+    //Now joins the threads
+    for(i = 0; i < pixelCountY; i++)
     {
-        if(pthread_join(threads[count], NULL))
+        if(pthread_join(threads[i], NULL))
         {
-            printf("ERROR2");
+            printf("ERROR ON JOIN THREAD #%d", i);
         }
     }   
-    for(count = 0; count < indexI; count++)
+
+    //Finally, takes the resulting array and puts it together into a bitmap image
+    for(i = 0; i < pixelCountY; i++)
     {
-        for(int i2 = 0; i2<imageGenPrecision;i2++)
+        for(j = 0; j < imageGenResolution;j++)
         {
-            fputc(args[count].resultArray[i2], bmp);
+            fputc(args[i].resultArray[j], bmp);
             fputc(0, bmp);
             fputc(0, bmp);
         }
     }
-
 }
 
 void *addPixelsToImage(void* tArgs)
@@ -394,17 +433,15 @@ void *addPixelsToImage(void* tArgs)
     complex_t x=args->x;
     FILE* bmp=args->bmp;
     int index = args->index;
+
     double j = window.minX;
     int mag,divergenceSpeed,l,k;
+    complex_t z;
     
 
-    for (l = 0; l < imageGenPrecision; l++)
-    { // real loop
-
-        j = round(j * 1000000000000) / 1000000000000; // gets rid of any garbage on the end of double
-
+    for (l = 0; l < imageGenResolution; l++) // real loop
+    { 
         x.real = j;
-        complex_t z;
         z.real = 0;
         z.imagine = 0;
         divergenceSpeed = 0;
@@ -414,22 +451,16 @@ void *addPixelsToImage(void* tArgs)
             z = complex_multiply(z, z); // squares z and then adds x
             z = complex_add(z, x);
 
-            mag = complex_magnitude(z); // gets the magnitude
+            mag = complex_magnitude(z); // calculates the magnitude
 
-            // this checks to see if it is growing too fast, thus diverging
+            // this checks to see if the number is growing too fast, thus diverging
             if (mag > divergenceSpeedMax)
             {
                 divergenceSpeed = k;
                 break;
             }
         }
-
-        //fputc(divergenceSpeed, bmp);
-        //fputc(0, bmp);
-        //fputc(0, bmp);
         j += window.scale;
         args->resultArray[l] = divergenceSpeed;
     }
-
-
 }
