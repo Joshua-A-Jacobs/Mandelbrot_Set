@@ -140,7 +140,7 @@ int main(void){
             default:
                 goto end;
             }
-        wclear(win);//clears the window to make room for the new one
+        werase(win);//clears the window to make room for the new one
         create_window(window,win);  //creates the Mendelbrot set onscreen
         wrefresh(win);  //displays the set
     }
